@@ -19,6 +19,8 @@
 
 using namespace std;
 
+#pragma warning(disable:4996)
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -70,73 +72,92 @@ void CGlassDetectDoc::Serialize(CArchive& ar)
 	else
 	{
 		// TODO: 在此添加加载代码
-		ULONG64 nPos = 0;
-		ULONG64 nTotalLength = pFile->GetLength();
-		CDialogReadProgress readProgress;
-		readProgress.Create(IDD_DIALOG_READ_PROGRESS);
-		readProgress.ShowWindow(SW_SHOWNORMAL);
-		readProgress.SetRange(nTotalLength);
-
-		CRect rect;
-		CRect rectProgress;
-		readProgress.GetClientRect(rectProgress);
-		AfxGetMainWnd()->GetClientRect(rect);
-		AfxGetMainWnd()->ClientToScreen(rect);
-		readProgress.SetWindowPos(
-			NULL, 
-			rect.left + (rect.Width() - rectProgress.Width()) / 2, 
-			rect.top + (rect.Height() - rectProgress.Height()) / 2, 0, 0, SWP_NOSIZE);
-
-		string str;
-		ifstream ifs;
-		ifs.open(CT2A(filePath));
-		if (!ifs.bad())
+		pFile->Close();
+		for (auto it = m_mapPrimitives.begin(); it != m_mapPrimitives.end(); it++)
 		{
-			for (auto it = m_mapPrimitives.begin(); it != m_mapPrimitives.end(); it++)
-			{
-				delete it->second;
-			}
-			m_mapPrimitives.clear();
-
-			int n = ifs.end;
-			while (getline(ifs, str))
-			{
-				MSG msg;
-				readProgress.SetCurrent(nPos);
-				while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-				{
-					TranslateMessage(&msg);
-					if (msg.message == WM_NCLBUTTONDOWN)
-						continue;
-					DispatchMessage(&msg);
-				}
-				nPos += str.length();
-
-				size_t pos1 = str.find_first_of(';');
-				size_t pos2 = str.find_last_of(';');
-				if ((pos1 == pos2) || (pos1 == string::npos) || (pos2 == string::npos))
-				{
-					OutputDebugStringA("Load file failed!\r\n");
-					break;
-				}
-				string szX = str.substr(0, pos1);
-				string szY = str.substr(pos1 + 1, pos2 - pos1 - 1);
-				string szZ = str.substr(pos2 + 1, str.length() - pos2);
-				if (m_mapPrimitives.find(GL_POINTS) == m_mapPrimitives.end())
-				{
-					CGLPrimitive* pPrimitive = CGLPrimitive::Create(GL_POINTS);
-					m_mapPrimitives.insert(pair<int, CGLPrimitive*>(GL_POINTS, pPrimitive));
-				}
-				m_mapPrimitives[GL_POINTS]->PushPoint(
-					atof(szX.c_str()),
-					atof(szY.c_str()),
-					atof(szZ.c_str()));
-			}
-			m_mapPrimitives[GL_POINTS]->updateBox();
+			delete it->second;
 		}
+		m_mapPrimitives.clear();
+
+		CGLPrimitive* pPrimitive = CGLPrimitive::Create(GL_POINTS);
+		m_mapPrimitives.insert(pair<int, CGLPrimitive*>(GL_POINTS, pPrimitive));
+
+		ReadFile(CT2A(filePath));
+		pFile->Open(filePath, CFile::modeRead);
 		UpdateView();
 	}
 }
+
+void CGlassDetectDoc::ReadFile(const char * szPath)
+{
+	FILE* pFile = fopen(szPath, "rb");
+	if (pFile == NULL)
+	{
+		AfxMessageBox(_T("打开文件错误"));
+		return;
+	}
+
+	/* 获取文件大小 */
+	fseek(pFile, 0, SEEK_END);
+	int lSize = ftell(pFile);
+	rewind(pFile);
+
+	/* 分配内存存储整个文件 */
+	char* buffer = (char*)malloc(sizeof(char)*lSize);
+	memset(buffer, 0, sizeof(char)*lSize);
+	if (buffer == NULL) return;
+
+	/* 将文件拷贝到buffer中 */
+	int result = fread(buffer, 1, lSize, pFile);
+	if (result != lSize)
+	{
+		AfxMessageBox(_T("读取文件错误"));
+		free(buffer);
+		return;
+	}
+
+	int nPos = 0;
+	CDialogReadProgress readProgress;
+	readProgress.Create(IDD_DIALOG_READ_PROGRESS);
+	readProgress.ShowWindow(SW_SHOWNORMAL);
+	readProgress.SetRange(lSize);
+
+	CRect rect;
+	CRect rectProgress;
+	readProgress.GetClientRect(rectProgress);
+	AfxGetMainWnd()->GetClientRect(rect);
+	AfxGetMainWnd()->ClientToScreen(rect);
+	readProgress.SetWindowPos(
+		NULL,
+		rect.left + (rect.Width() - rectProgress.Width()) / 2,
+		rect.top + (rect.Height() - rectProgress.Height()) / 2, 0, 0, SWP_NOSIZE);
+
+	float tempx, tempy, tempz;
+	char delims[] = "\n";
+	char *r = NULL;
+	r = strtok(buffer, delims);
+	while (r != NULL) {
+		nPos += strlen(r);
+		MSG msg;
+		readProgress.SetCurrent(nPos);
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			if (msg.message == WM_NCLBUTTONDOWN)
+				continue;
+			DispatchMessage(&msg);
+		}
+
+		if (sscanf(r, "%f;%f;%f", &tempx, &tempy, &tempz) == 3)
+			m_mapPrimitives[GL_POINTS]->PushPoint(tempx, tempy, tempz);
+		r = strtok(NULL, delims);
+	}
+
+	/* 结束演示，关闭文件并释放内存 */
+	fclose(pFile);
+	free(buffer);
+}
+
 
 #ifdef SHARED_HANDLERS
 

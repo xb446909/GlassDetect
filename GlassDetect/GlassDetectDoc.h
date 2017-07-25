@@ -56,5 +56,6 @@ public:
 	void SetValid(bool isValid) { m_isValid = isValid; }
 private:
 	void UpdateView();
+	void ReadFile(const char* szPath);
 	bool m_isValid;
 };
