@@ -6,5 +6,7 @@ class CGLPoints :
 public:
 	CGLPoints();
 	~CGLPoints();
+	void Add(vec3 pt);
+	void Add(float x, float y, float z);
 };
 

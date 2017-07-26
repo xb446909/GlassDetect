@@ -66,6 +66,9 @@
     <ClInclude Include="DialogCameraSetting.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="GLLines.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GlassDetect.cpp">
@@ -108,6 +111,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="DialogCameraSetting.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GLLines.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

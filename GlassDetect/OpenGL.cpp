@@ -16,11 +16,12 @@ COpenGL::COpenGL()
 
 COpenGL::~COpenGL()
 {
-	for (auto it = m_mapBuffer.begin(); it != m_mapBuffer.end(); it++)
+	for (size_t i = 0; i < m_vecBuffer.size(); i++)
 	{
-		glDeleteBuffers(1, &it->second.buffer);
+		glDeleteBuffers(1, &m_vecBuffer[i].buffer);
 	}
-	m_mapBuffer.clear();
+
+	m_vecBuffer.clear();
 
 	glDeleteProgram(m_programID);
 
@@ -133,7 +134,6 @@ void COpenGL::RenderScene()
 	glUniformMatrix4fv(m_matrixID, 1, GL_FALSE, &m_MVP[0][0]);
 
 	DrawBuffer();
-
 	SwapBuffers(wglGetCurrentDC());
 }
 
@@ -170,20 +170,21 @@ void COpenGL::setCameraPos(vec3 P)
 
 void COpenGL::DrawBuffer()
 {
-	for (auto it = m_mapBuffer.begin(); it != m_mapBuffer.end(); it++)
+	for (size_t i = 0; i < m_vecBuffer.size(); i++)
 	{
-		glEnableVertexAttribArray(it->first);
-		glBindBuffer(GL_ARRAY_BUFFER, it->second.buffer);
+		glEnableVertexAttribArray(m_vecBuffer[i].index);
+		glBindBuffer(GL_ARRAY_BUFFER, m_vecBuffer[i].buffer);
 		glVertexAttribPointer(
-			it->first,          // attribute. Must match the layout in the shader.
+			m_vecBuffer[i].index,          // attribute. Must match the layout in the shader.
 			3,                  // size
 			GL_FLOAT,           // type
 			GL_FALSE,           // normalized?
 			0,                  // stride
 			(void*)0            // array buffer offset
 		);
-		glDrawArrays(it->second.type, 0, it->second.size);
-		glDisableVertexAttribArray(it->first);
+		glDrawArrays(m_vecBuffer[i].type, 0, m_vecBuffer[i].size);
+		glDisableVertexAttribArray(m_vecBuffer[i].index);
+		glFlush();
 	}
 }
 
@@ -529,31 +530,22 @@ vec3 COpenGL::convertMousePositionToOrientation(int x, int y)
 	float yc = static_cast<double>(rect.Height() / 2);
 
 	vec3 Q2D;
-	if (m_viewportParams.objectCenteredView)
+
+	//project the current pivot point on screen
+	CameraParam camera;
+	getGLCameraParameters(camera);
+
+	if (!camera.project(m_viewportParams.pivotPoint, Q2D))
 	{
-		//project the current pivot point on screen
-		CameraParam camera;
-		getGLCameraParameters(camera);
-
-		if (!camera.project(m_viewportParams.pivotPoint, Q2D))
-		{
-			//arbitrary direction
-			return vec3(0, 0, 1);
-		}
-		//we set the virtual rotation pivot closer to the actual one (but we always stay in the central part of the screen!)
-		Q2D.x = min<GLfloat>(Q2D.x, 3 * rect.Width() / 4);
-		Q2D.x = max<GLfloat>(Q2D.x, rect.Width() / 4);
-
-		Q2D.y = min<GLfloat>(Q2D.y, 3 * rect.Height() / 4);
-		Q2D.y = max<GLfloat>(Q2D.y, rect.Height() / 4);
-
-
+		//arbitrary direction
+		return vec3(0, 0, 1);
 	}
-	else
-	{
-		Q2D.x = static_cast<GLfloat>(xc);
-		Q2D.y = static_cast<GLfloat>(yc);
-	}
+	//we set the virtual rotation pivot closer to the actual one (but we always stay in the central part of the screen!)
+	Q2D.x = min<GLfloat>(Q2D.x, 3 * rect.Width() / 4);
+	Q2D.x = max<GLfloat>(Q2D.x, rect.Width() / 4);
+
+	Q2D.y = min<GLfloat>(Q2D.y, 3 * rect.Height() / 4);
+	Q2D.y = max<GLfloat>(Q2D.y, rect.Height() / 4);
 
 	//invert y
 	y = rect.Height() - 1 - y;
@@ -588,11 +580,6 @@ vec3 COpenGL::convertMousePositionToOrientation(int x, int y)
 
 vec3 COpenGL::getRealCameraCenter() const
 {
-	//the camera center is always defined in perspective mode
-	if (m_viewportParams.perspectiveView)
-	{
-		return m_viewportParams.cameraCenter;
-	}
 
 	//in orthographic mode, we put the camera at the center of the
 	//visible objects (along the viewing direction)
@@ -609,58 +596,28 @@ mat4 COpenGL::computeModelViewMatrix(const vec3& cameraCenter) const
 	mat4 viewMatd;
 	viewMatd[0][0] = viewMatd[1][1] = viewMatd[2][2] = viewMatd[3][3] = 1.0f;
 
-	//apply current camera parameters (see trunk/doc/rendering_pipeline.doc)
-	if (m_viewportParams.objectCenteredView)
-	{
-		//place origin on pivot point
-		//viewMatd.setTranslation(/*viewMatd.getTranslationAsVec3D()*/ -m_viewportParams.pivotPoint);
-		viewMatd = translate(viewMatd, -m_viewportParams.pivotPoint);
-		//viewMatd[3] = vec4(-m_viewportParams.pivotPoint, 1.0f);
+	//place origin on pivot point
+	//viewMatd.setTranslation(/*viewMatd.getTranslationAsVec3D()*/ -m_viewportParams.pivotPoint);
+	viewMatd = translate(viewMatd, -m_viewportParams.pivotPoint);
+	//viewMatd[3] = vec4(-m_viewportParams.pivotPoint, 1.0f);
 
-		//rotation (viewMat is simply a rotation matrix around the pivot here!)
-		viewMatd = m_viewportParams.viewMat * viewMatd;
+	//rotation (viewMat is simply a rotation matrix around the pivot here!)
+	viewMatd = m_viewportParams.viewMat * viewMatd;
 
-		//go back to initial origin
-		//then place origin on camera center
-		//viewMatd.setTranslation(viewMatd.getTranslationAsVec3D() + m_viewportParams.pivotPoint - cameraCenter);
-		vec3 translation = vec3(viewMatd[3].x, viewMatd[3].y, viewMatd[3].z);
-		viewMatd[3] = vec4(translation + m_viewportParams.pivotPoint - cameraCenter, 1.0f);
-	}
-	else
-	{
-		//place origin on camera center
-		//viewMatd.setTranslation(/*viewMatd.getTranslationAsVec3D()*/ -cameraCenter);
-		viewMatd[3] = vec4(-cameraCenter, 1.0f);
-
-		//rotation (viewMat is the rotation around the camera center here - no pivot)
-		viewMatd = m_viewportParams.viewMat * viewMatd;
-	}
+	//go back to initial origin
+	//then place origin on camera center
+	//viewMatd.setTranslation(viewMatd.getTranslationAsVec3D() + m_viewportParams.pivotPoint - cameraCenter);
+	vec3 translation = vec3(viewMatd[3].x, viewMatd[3].y, viewMatd[3].z);
+	viewMatd[3] = vec4(translation + m_viewportParams.pivotPoint - cameraCenter, 1.0f);
 
 	mat4 scaleMatd;
 	scaleMatd[0][0] = scaleMatd[1][1] = scaleMatd[2][2] = scaleMatd[3][3] = 1.0f;
-	if (m_viewportParams.perspectiveView) //perspective mode
-	{
-		//for proper aspect ratio handling
-		if (m_glViewport.Height() != 0)
-		{
-			float ar = m_glViewport.Width() / (m_glViewport.Height() * m_viewportParams.perspectiveAspectRatio);
-			if (ar < 1.0f)
-			{
-				//glScalef(ar, ar, 1.0);
-				scaleMatd[0][0] = ar;
-				scaleMatd[1][1] = ar;
-			}
-		}
-	}
-	else //ortho. mode
-	{
-		//apply zoom
-		float totalZoom = m_viewportParams.zoom / m_viewportParams.pixelSize;
-		//glScalef(totalZoom,totalZoom,totalZoom);
-		scaleMatd[0][0] = totalZoom;
-		scaleMatd[1][1] = totalZoom;
-		scaleMatd[2][2] = totalZoom;
-	}
+	//apply zoom
+	float totalZoom = m_viewportParams.zoom / m_viewportParams.pixelSize;
+	//glScalef(totalZoom,totalZoom,totalZoom);
+	scaleMatd[0][0] = totalZoom;
+	scaleMatd[1][1] = totalZoom;
+	scaleMatd[2][2] = totalZoom;
 
 	return scaleMatd * viewMatd;
 }
@@ -680,7 +637,7 @@ mat4 COpenGL::computeProjectionMatrix(const vec3 & cameraCenter, bool withGLfeat
 		metrics->cameraToBBCenterDist = sqrt(dot(cameraCenter - bbCenter, cameraCenter - bbCenter));
 	}
 	//virtual pivot point (i.e. to handle viewer-based mode smoothly)
-	vec3 pivotPoint = (m_viewportParams.objectCenteredView ? m_viewportParams.pivotPoint : cameraCenter);
+	vec3 pivotPoint = m_viewportParams.pivotPoint;
 
 	//distance between the camera center and the pivot point
 	//warning: in orthographic mode it's important to get the 'real' camera center
@@ -726,8 +683,8 @@ mat4 COpenGL::computeProjectionMatrix(const vec3 & cameraCenter, bool withGLfeat
 			halfDist * (float)m_glViewport.Width() / (float)m_glViewport.Height(),
 			-halfDist,
 			halfDist,
-			-100.0f,
-			100.0f);
+			-halfDist,
+			halfDist);
 
 	if (metrics)
 	{
@@ -868,8 +825,6 @@ void COpenGL::getGLCameraParameters(CameraParam & params)
 	params.viewport[2] = m_glViewport.Width();
 	params.viewport[3] = m_glViewport.Height();
 
-	params.perspective = m_viewportParams.perspectiveView;
-	params.fov_deg = m_viewportParams.fov;
 	params.pixelSize = m_viewportParams.pixelSize;
 }
 
@@ -915,8 +870,6 @@ void COpenGL::OnSize(UINT nType, int cx, int cy)
 	{
 		cy = 1;
 	}
-
-	OutputString("(%d, %d)\r\n", cx, cy);
 
 	m_glViewport = CRect(0, 0, cx, cy);
 	glViewport(0, 0, cx, cy);
@@ -994,20 +947,14 @@ void COpenGL::setBaseViewMat(mat4 & mat)
 void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
-
-	//OutputString("(%d, %d)\r\n", point.x, point.y);
-
 	if (nFlags & MK_LBUTTON)
 	{
-		OutputString("1: %ld\r\n", GetTickCount());
 		m_currentMouseOrientation = convertMousePositionToOrientation(point.x, point.y);
 		mat4 rotateMat = FromToRotation(m_lastMouseOrientation, m_currentMouseOrientation);
 		m_lastMouseOrientation = m_currentMouseOrientation;
 		rotateBaseViewMat(rotateMat);
 		invalidViewport();
-		OutputString("2: %ld\r\n", GetTickCount());
 		RenderScene();
-		OutputString("3: %ld\r\n", GetTickCount());
 	}
 	if (nFlags & MK_RBUTTON)
 	{
@@ -1053,18 +1000,14 @@ void COpenGL::PushBuffer(const int nIndex, int nType, const float * data, int si
 {
 	DrawParam drawParam;
 	GLuint vertexBuffer;
-	auto it = m_mapBuffer.find(nIndex);
-	if (it != m_mapBuffer.end())
-	{
-		glDeleteBuffers(1, &it->second.buffer);
-		m_mapBuffer.erase(it);
-	}
+
 	glGenBuffers(1, &vertexBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
 	glBufferData(GL_ARRAY_BUFFER, size * 3 * sizeof(float), data, GL_STATIC_DRAW);
 
+	drawParam.index = nIndex;
 	drawParam.buffer = vertexBuffer;
 	drawParam.size = size;
 	drawParam.type = nType;
-	m_mapBuffer.insert(pair<int, DrawParam>(nIndex, drawParam));
+	m_vecBuffer.push_back(drawParam);
 }

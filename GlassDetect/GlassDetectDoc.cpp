@@ -13,6 +13,8 @@
 #include "DialogReadProgress.h"
 #include "GlassDetectView.h"
 
+#include "GLPoints.h"
+
 #include <propkey.h>
 #include <fstream>
 #include <sstream>
@@ -73,14 +75,14 @@ void CGlassDetectDoc::Serialize(CArchive& ar)
 	{
 		// TODO: 在此添加加载代码
 		pFile->Close();
-		for (auto it = m_mapPrimitives.begin(); it != m_mapPrimitives.end(); it++)
+		for (size_t i = 0; i < m_vecPrimitives.size(); i++)
 		{
-			delete it->second;
+			delete m_vecPrimitives[i];
 		}
-		m_mapPrimitives.clear();
+		m_vecPrimitives.clear();
 
 		CGLPrimitive* pPrimitive = CGLPrimitive::Create(GL_POINTS);
-		m_mapPrimitives.insert(pair<int, CGLPrimitive*>(GL_POINTS, pPrimitive));
+		m_vecPrimitives.push_back(pPrimitive);
 
 		ReadFile(CT2A(filePath));
 		pFile->Open(filePath, CFile::modeRead);
@@ -149,7 +151,10 @@ void CGlassDetectDoc::ReadFile(const char * szPath)
 		}
 
 		if (sscanf(r, "%f;%f;%f", &tempx, &tempy, &tempz) == 3)
-			m_mapPrimitives[GL_POINTS]->PushPoint(tempx, tempy, tempz);
+		{
+			CGLPoints* pPoint = reinterpret_cast<CGLPoints*>(m_vecPrimitives[0]);
+			pPoint->Add(tempx, tempy, tempz);
+		}
 		r = strtok(NULL, delims);
 	}
 
@@ -234,16 +239,17 @@ void CGlassDetectDoc::Dump(CDumpContext& dc) const
 void CGlassDetectDoc::OnCloseDocument()
 {
 	// TODO: 在此添加专用代码和/或调用基类
-	for (auto it = m_mapPrimitives.begin(); it != m_mapPrimitives.end(); it++)
+	for (size_t i = 0; i < m_vecPrimitives.size(); i++)
 	{
-		delete it->second;
+		delete m_vecPrimitives[i];
 	}
-	m_mapPrimitives.clear();
+	m_vecPrimitives.clear();
 	CDocument::OnCloseDocument();
 }
 
 void CGlassDetectDoc::UpdateView()
 {
+	//m_mapPrimitives[GL_POINTS]->updateBox();
 	SetValid(false);
 	POSITION pos = GetFirstViewPosition();
 	CGlassDetectView* pGlassDetectView = reinterpret_cast<CGlassDetectView*>(GetNextView(pos));

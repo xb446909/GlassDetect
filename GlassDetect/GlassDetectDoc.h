@@ -32,7 +32,7 @@ public:
 public:
 	virtual ~CGlassDetectDoc();
 
-	map<int, CGLPrimitive*> m_mapPrimitives;
+	vector<CGLPrimitive*> m_vecPrimitives;
 
 #ifdef _DEBUG
 	virtual void AssertValid() const;

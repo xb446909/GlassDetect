@@ -16,10 +16,8 @@ public:
 	{
 		tagViewportParam()
 		{
-			perspectiveView = false;
 			zoom = 1.0f;
 			pixelSize = 1.0f;
-			fov = 30;
 			orthoAspectRatio = 1.0f;
 			viewMat[0][0] = viewMat[1][1] = viewMat[2][2] = viewMat[3][3] = 1.0f;
 		}
@@ -42,15 +40,6 @@ public:
 		//! Line width
 		float defaultLineWidth;
 
-		//! Perspective view state
-		bool perspectiveView;
-		//! Whether view is centered on displayed scene (true) or on the user eye (false)
-		/** Always true for ortho. mode.
-		**/
-		bool objectCenteredView;
-
-		//! Theoretical perspective 'zNear' relative position
-		double zNearCoef;
 		//! Actual perspective 'zNear' value
 		double zNear;
 		//! Actual perspective 'zFar' value
@@ -62,11 +51,6 @@ public:
 		//! Camera center (for perspective mode)
 		vec3 cameraCenter;
 
-		//! Camera F.O.V. (field of view - for perspective mode only)
-		float fov;
-		//! Camera aspect ratio (perspective mode only)
-		float perspectiveAspectRatio;
-
 		//! 3D view aspect ratio (ortho mode only)
 		/** AR = width / height
 		**/
@@ -76,9 +60,7 @@ public:
 	typedef struct tagCameraParam
 	{
 		tagCameraParam()
-			: perspective(false)
-			, fov_deg(0)
-			, pixelSize(0)
+			: pixelSize(1.0f)
 		{
 			memset(viewport, 0, 4 * sizeof(int));
 		}
@@ -95,10 +77,6 @@ public:
 		mat4 projectionMat;
 		//! Viewport (GL_VIEWPORT)
 		int viewport[4];
-		//! Perspective mode
-		bool perspective;
-		//! F.O.V. (in degrees) - perspective mode only
-		float fov_deg;
 		//! Pixel size (i.e. zoom) - non perspective mode only
 		float pixelSize;
 	}CameraParam;
@@ -112,12 +90,22 @@ public:
 
 	typedef struct tagDrawParam
 	{
+		int index;
 		int type;
 		GLuint buffer;
 		int size;
 
+		tagDrawParam()
+		{
+			index = 0;
+			type = 0;
+			buffer = 0;
+			size = 0;
+		}
+
 		const tagDrawParam& operator=(tagDrawParam param)
 		{
+			index = param.index;
 			type = param.type;
 			buffer = param.buffer;
 			size = param.size;
@@ -144,7 +132,7 @@ private:
 	GLuint m_programID;
 	CPoint m_lastPoint;
 
-	map<int, DrawParam> m_mapBuffer;
+	vector<DrawParam> m_vecBuffer;
 
 	float m_ratio;
 	vec3 m_vecTranslate;

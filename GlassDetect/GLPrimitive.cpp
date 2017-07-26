@@ -18,12 +18,6 @@ CGLPrimitive * CGLPrimitive::Create(int nType)
 	return pObj;
 }
 
-void CGLPrimitive::PushPoint(float x, float y, float z)
-{
-	CGLPoint* point = new CGLPoint(x, y, z);
-	m_vecPoints.push_back(point);
-}
-
 CBox CGLPrimitive::getBox()
 {
 	if (m_validBox)
@@ -48,6 +42,8 @@ CGLPrimitive::CGLPrimitive(int nType)
 
 void CGLPrimitive::UpdateData()
 {
+	if (m_validData)
+		return;
 	if (m_data != nullptr)
 	{
 		delete[] m_data;
@@ -64,6 +60,7 @@ void CGLPrimitive::UpdateData()
 			m_data[3 * i + 2] = m_vecPoints[i]->z();
 		}
 	}
+	m_validData = true;
 }
 
 

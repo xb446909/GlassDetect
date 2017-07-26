@@ -193,6 +193,7 @@
     <ClInclude Include="GlassDetect.h" />
     <ClInclude Include="GlassDetectDoc.h" />
     <ClInclude Include="GlassDetectView.h" />
+    <ClInclude Include="GLLines.h" />
     <ClInclude Include="GLPoint.h" />
     <ClInclude Include="GLPoints.h" />
     <ClInclude Include="GLPrimitive.h" />
@@ -211,6 +212,7 @@
     <ClCompile Include="GlassDetect.cpp" />
     <ClCompile Include="GlassDetectDoc.cpp" />
     <ClCompile Include="GlassDetectView.cpp" />
+    <ClCompile Include="GLLines.cpp" />
     <ClCompile Include="GLPoint.cpp" />
     <ClCompile Include="GLPoints.cpp" />
     <ClCompile Include="GLPrimitive.cpp" />

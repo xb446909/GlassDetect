@@ -71,9 +71,9 @@ void CGlassDetectView::OnDraw(CDC* /*pDC*/)
 	// TODO: 在此处为本机数据添加绘制代码
 	if (!pDoc->IsValid())
 	{
-		for (auto it = pDoc->m_mapPrimitives.begin(); it != pDoc->m_mapPrimitives.end(); it++)
+		for (size_t i = 0; i < pDoc->m_vecPrimitives.size(); i++)
 		{
-			CGLPrimitive* pPrimitive = it->second;
+			CGLPrimitive* pPrimitive = pDoc->m_vecPrimitives[i];
 			if ((pPrimitive->getData() != nullptr) && (pPrimitive->getDataLength() != 0))
 			{
 				PushBuffer(0, pPrimitive->getType(), pPrimitive->getData(), pPrimitive->getDataLength());
@@ -109,9 +109,9 @@ CBox CGlassDetectView::getVisibleBox() const
 	CGlassDetectDoc* pDoc = GetDocument();
 	if (!pDoc) return CBox();
 	CBox box;
-	for (auto it = pDoc->m_mapPrimitives.begin(); it != pDoc->m_mapPrimitives.end(); it++)
+	for (int i = 0; i < pDoc->m_vecPrimitives.size(); i++)
 	{
-		CGLPrimitive* pPrimitive = it->second;
+		CGLPrimitive* pPrimitive = pDoc->m_vecPrimitives[i];
 		box += pPrimitive->getBox();
 	}
 	return box;
@@ -149,7 +149,7 @@ int CGlassDetectView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	// TODO:  在此添加您专用的创建代码
 
-	glPointSize(3.0);
+	glPointSize(5.0);
 
 	return 0;
 }
