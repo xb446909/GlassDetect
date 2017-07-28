@@ -134,6 +134,16 @@ private:
 
 	vector<DrawParam> m_vecBuffer;
 
+	vec3 m_vecCamera;
+	vec3 m_vecView;
+	vec3 m_vecHead;
+
+	vec3 m_vecAxisX;
+	vec3 m_vecAxisY;
+	vec3 m_vecAxisZ;
+	mat4 m_rotateMatrix;
+
+
 	float m_ratio;
 	vec3 m_vecTranslate;
 

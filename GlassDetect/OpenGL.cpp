@@ -944,6 +944,7 @@ void COpenGL::setBaseViewMat(mat4 & mat)
 	invalidateVisualization();
 }
 
+
 void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
@@ -952,6 +953,7 @@ void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 		m_currentMouseOrientation = convertMousePositionToOrientation(point.x, point.y);
 		mat4 rotateMat = FromToRotation(m_lastMouseOrientation, m_currentMouseOrientation);
 		m_lastMouseOrientation = m_currentMouseOrientation;
+
 		rotateBaseViewMat(rotateMat);
 		invalidViewport();
 		RenderScene();
