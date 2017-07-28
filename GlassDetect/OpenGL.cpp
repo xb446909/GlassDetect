@@ -6,10 +6,8 @@
 #pragma comment(lib, "../GL/lib/glew32s.lib")
 
 COpenGL::COpenGL()
-	: m_validModelviewMatrix(false)
+	: m_validModelViewMatrix(false)
 	, m_validProjectionMatrix(false)
-	, m_verticalRotationLocked(false)
-	, m_bubbleViewModeEnabled(false)
 {
 }
 
@@ -92,9 +90,6 @@ BOOL COpenGL::init()
 
 	m_programID = LoadShaders("SimpleTransform.vertexshader", "SingleColor.fragmentshader");
 
-	m_ratio = 1;
-	m_vecTranslate = vec3(0.0f);
-
 	// Get a handle for our "MVP" uniform
 	m_matrixID = glGetUniformLocation(m_programID, "MVP");
 
@@ -119,15 +114,8 @@ void COpenGL::RenderScene()
 
 	// Send our transformation to the currently bound shader, 
 
-	mat4 model = mat4(1.0f);
-
-	//model = translate(model, m_vecTranslate);
-	model = scale(model, vec3(m_ratio));
-
 	mat4 modelViewMat = getModelViewMatrix();
 	mat4 projMat = getProjectionMatrix();
-	
-	//projMat = ortho(1.0f, -1.0f, 1.0f, -1.0f, -200.0f, 200.0f);
 
 	m_MVP = projMat * modelViewMat;
 	// in the "MVP" uniform
@@ -135,6 +123,25 @@ void COpenGL::RenderScene()
 
 	DrawBuffer();
 	SwapBuffers(wglGetCurrentDC());
+}
+
+void COpenGL::setBaseView()
+{
+	updateModelViewMatrix();
+	updateProjectionMatrix();
+	m_modelViewParam.camera = vec3(0.0f, 0.0f, 4.0f);
+	m_modelViewParam.view = vec3(0.0f);
+	m_modelViewParam.head = vec3(0.0f, 1.0f, 0.0f);
+	m_modelViewParam.setAxis();
+}
+
+void COpenGL::setRotate(mat4 rotMat)
+{
+	m_modelViewParam.camera = productRotMat(rotMat, m_modelViewParam.camera);
+	m_modelViewParam.head = productRotMat(rotMat, m_modelViewParam.head);
+	m_modelViewParam.head = normalize(m_modelViewParam.head);
+	m_modelViewParam.setAxis();
+	invalidateVisualization();
 }
 
 CBox COpenGL::getVisibleBox() const
@@ -149,22 +156,18 @@ void COpenGL::invalidViewport()
 
 void COpenGL::invalidateVisualization()
 {
-	m_validModelviewMatrix = false;
+	m_validModelViewMatrix = false;
 }
 
 void COpenGL::setPivotPoint(vec3 P)
 {
-	m_viewportParams.pivotPoint = P;
 	invalidViewport();
 }
 
 void COpenGL::setCameraPos(vec3 P)
 {
-	OutputString("(%f, %f, %f)\r\n", P.x, P.y, P.z);
-	m_viewportParams.cameraCenter = P;
 	invalidViewport();
 	invalidateVisualization();
-
 }
 
 
@@ -218,515 +221,69 @@ BOOL COpenGL::SetupPixelFormat(HDC hDC)
 	return TRUE;
 }
 
-bool COpenGL::InvertMatrix(const mat4& m, mat4& out)
+
+mat4 COpenGL::computeModelViewMatrix()
 {
-	float wtmp[4][8];
-	float m0, m1, m2, m3, s;
-	float *r0, *r1, *r2, *r3;
-	r0 = wtmp[0], r1 = wtmp[1], r2 = wtmp[2], r3 = wtmp[3];
-
-	r0[0] = m[0][0], r0[1] = m[0][1],
-		r0[2] = m[0][2], r0[3] = m[0][3],
-		r0[4] = 1.0, r0[5] = r0[6] = r0[7] = 0.0,
-		r1[0] = m[1][0], r1[1] = m[1][1],
-		r1[2] = m[1][2], r1[3] = m[1][3],
-		r1[5] = 1.0, r1[4] = r1[6] = r1[7] = 0.0,
-		r2[0] = m[2][0], r2[1] = m[2][1],
-		r2[2] = m[2][2], r2[3] = m[2][3],
-		r2[6] = 1.0, r2[4] = r2[5] = r2[7] = 0.0,
-		r3[0] = m[3][0], r3[1] = m[3][1],
-		r3[2] = m[3][2], r3[3] = m[3][3],
-		r3[7] = 1.0, r3[4] = r3[5] = r3[6] = 0.0;
-
-	//choose pivot - or die
-	if (std::abs(r3[0]) > std::abs(r2[0]))
-	{
-		float* r = r3;
-		r3 = r2;
-		r2 = r;
-	}
-	if (std::abs(r2[0]) > std::abs(r1[0]))
-	{
-		float* r = r2;
-		r2 = r1;
-		r1 = r;
-	}
-	if (std::abs(r1[0]) > std::abs(r0[0]))
-	{
-		float* r = r1;
-		r1 = r0;
-		r0 = r;
-	}
-	if (0.0 == r0[0])
-		return false;
-
-	//eliminate first variable
-	m1 = r1[0] / r0[0];
-	m2 = r2[0] / r0[0];
-	m3 = r3[0] / r0[0];
-	s = r0[1];
-	r1[1] -= m1 * s;
-	r2[1] -= m2 * s;
-	r3[1] -= m3 * s;
-	s = r0[2];
-	r1[2] -= m1 * s;
-	r2[2] -= m2 * s;
-	r3[2] -= m3 * s;
-	s = r0[3];
-	r1[3] -= m1 * s;
-	r2[3] -= m2 * s;
-	r3[3] -= m3 * s;
-	s = r0[4];
-	if (s != 0.0)
-	{
-		r1[4] -= m1 * s;
-		r2[4] -= m2 * s;
-		r3[4] -= m3 * s;
-	}
-	s = r0[5];
-	if (s != 0.0)
-	{
-		r1[5] -= m1 * s;
-		r2[5] -= m2 * s;
-		r3[5] -= m3 * s;
-	}
-	s = r0[6];
-	if (s != 0.0)
-	{
-		r1[6] -= m1 * s;
-		r2[6] -= m2 * s;
-		r3[6] -= m3 * s;
-	}
-	s = r0[7];
-	if (s != 0.0)
-	{
-		r1[7] -= m1 * s;
-		r2[7] -= m2 * s;
-		r3[7] -= m3 * s;
-	}
-
-	//choose pivot - or die
-	if (std::abs(r3[1]) > std::abs(r2[1]))
-	{
-		float* r = r3;
-		r3 = r2;
-		r2 = r;
-	}
-	if (std::abs(r2[1]) > std::abs(r1[1]))
-	{
-		float* r = r2;
-		r2 = r1;
-		r1 = r;
-	}
-	if (0.0 == r1[1])
-		return false;
-
-	//eliminate second variable
-	m2 = r2[1] / r1[1];
-	m3 = r3[1] / r1[1];
-	r2[2] -= m2 * r1[2];
-	r3[2] -= m3 * r1[2];
-	r2[3] -= m2 * r1[3];
-	r3[3] -= m3 * r1[3];
-	s = r1[4];
-	if (0.0 != s)
-	{
-		r2[4] -= m2 * s;
-		r3[4] -= m3 * s;
-	}
-	s = r1[5];
-	if (0.0 != s)
-	{
-		r2[5] -= m2 * s;
-		r3[5] -= m3 * s;
-	}
-	s = r1[6];
-	if (0.0 != s)
-	{
-		r2[6] -= m2 * s;
-		r3[6] -= m3 * s;
-	}
-	s = r1[7];
-	if (0.0 != s)
-	{
-		r2[7] -= m2 * s;
-		r3[7] -= m3 * s;
-	}
-
-	//choose pivot - or die
-	if (std::abs(r3[2]) > std::abs(r2[2]))
-	{
-		float* r = r3;
-		r3 = r2;
-		r2 = r;
-	}
-	if (0.0 == r2[2])
-		return false;
-
-	//eliminate third variable
-	m3 = r3[2] / r2[2];
-	r3[3] -= m3 * r2[3], r3[4] -= m3 * r2[4],
-		r3[5] -= m3 * r2[5], r3[6] -= m3 * r2[6], r3[7] -= m3 * r2[7];
-
-	//last check
-	if (0.0 == r3[3])
-		return false;
-
-	s = 1.0 / r3[3]; //now back substitute row 3
-	r3[4] *= s;
-	r3[5] *= s;
-	r3[6] *= s;
-	r3[7] *= s;
-	m2 = r2[3]; //now back substitute row 2
-	s = 1.0 / r2[2];
-	r2[4] = s * (r2[4] - r3[4] * m2), r2[5] = s * (r2[5] - r3[5] * m2),
-		r2[6] = s * (r2[6] - r3[6] * m2), r2[7] = s * (r2[7] - r3[7] * m2);
-	m1 = r1[3];
-	r1[4] -= r3[4] * m1, r1[5] -= r3[5] * m1,
-		r1[6] -= r3[6] * m1, r1[7] -= r3[7] * m1;
-	m0 = r0[3];
-	r0[4] -= r3[4] * m0, r0[5] -= r3[5] * m0,
-		r0[6] -= r3[6] * m0, r0[7] -= r3[7] * m0;
-	m1 = r1[2]; //now back substitute row 1
-	s = 1.0 / r1[1];
-	r1[4] = s * (r1[4] - r2[4] * m1), r1[5] = s * (r1[5] - r2[5] * m1),
-		r1[6] = s * (r1[6] - r2[6] * m1), r1[7] = s * (r1[7] - r2[7] * m1);
-	m0 = r0[2];
-	r0[4] -= r2[4] * m0, r0[5] -= r2[5] * m0,
-		r0[6] -= r2[6] * m0, r0[7] -= r2[7] * m0;
-	m0 = r0[1]; //now back substitute row 0
-	s = 1.0 / r0[0];
-	r0[4] = s * (r0[4] - r1[4] * m0), r0[5] = s * (r0[5] - r1[5] * m0),
-		r0[6] = s * (r0[6] - r1[6] * m0), r0[7] = s * (r0[7] - r1[7] * m0);
-
-	out[0][0] = r0[4];
-	out[0][1] = r0[5], out[0][2] = r0[6];
-	out[0][3] = r0[7], out[1][0] = r1[4];
-	out[1][1] = r1[5], out[1][2] = r1[6];
-	out[1][3] = r1[7], out[2][0] = r2[4];
-	out[2][1] = r2[5], out[2][2] = r2[6];
-	out[2][3] = r2[7], out[3][0] = r3[4];
-	out[3][1] = r3[5], out[3][2] = r3[6];
-	out[3][3] = r3[7];
-
-	return true;
+	mat4 view = lookAt(
+		m_modelViewParam.camera,
+		m_modelViewParam.view,
+		m_modelViewParam.head);
+	mat4 model = translate(mat4(), m_modelViewParam.translate);
+	model = scale(model, vec3(m_modelViewParam.zoom));
+	return model * view;
 }
 
-mat4 COpenGL::initMatFromParameter(float phi_rad, float theta_rad, float psi_rad, const vec3 & t3D)
+mat4 COpenGL::computeProjectionMatrix()
 {
-	mat4 mat;
-
-	float c1 = cos(phi_rad);
-	float c2 = cos(theta_rad);
-	float c3 = cos(psi_rad);
-
-	float s1 = sin(phi_rad);
-	float s2 = sin(theta_rad);
-	float s3 = sin(psi_rad);
-
-	//1st column
-	mat[0][0] = c2*c1;
-	mat[1][0] = c2*s1;
-	mat[2][0] = -s2;
-	mat[3][0]= 0;
-
-	//2nd column
-	mat[0][1] = s3*s2*c1 - c3*s1;
-	mat[1][1] = s3*s2*s1 + c3*c1;
-	mat[2][1] = s3*c2;
-	mat[3][1] = 0;
-
-	//3rd column
-	mat[0][2] = c3*s2*c1 + s3*s1;
-	mat[1][2] = c3*s2*s1 - s3*c1;
-	mat[2][2] = c3*c2;
-	mat[3][2] = 0;
-
-	//4th column
-	mat[0][3] = t3D.x;
-	mat[1][3] = t3D.y;
-	mat[2][3] = t3D.z;
-	mat[3][3] = static_cast<float>(1.0);
-
-	return mat;
-}
-
-bool COpenGL::Unproject(const vec3& input2D, const mat4& modelview, const mat4& projection, const int* viewport, vec3& output3D)
-{
-	//compute projection x modelview
-	mat4 A = projection * modelview;
-	mat4 m;
-
-	if (!InvertMatrix(A, m))
-	{
-		return false;
-	}
-
-	mat4 mA = m * A;
-
-	//Transformation of normalized coordinates between -1 and 1
-	vec4 in;
-	in.x = static_cast<float>((input2D.x - static_cast<float>(viewport[0])) / viewport[2] * 2 - 1);
-	in.y = static_cast<float>((input2D.y - static_cast<float>(viewport[1])) / viewport[3] * 2 - 1);
-	in.z = static_cast<float>(2 * input2D.z - 1);
-	in.w = 1;
-
-	//Objects coordinates
-	vec4 out = m * in;
-	if (out.w == 0)
-	{
-		return false;
-	}
-
-	output3D = vec3(out[0], out[1], out[2]) / out.w;
-
-	return true;
-}
-
-bool COpenGL::Project(const vec3& input3D, const mat4& modelview, const mat4& projection, const int* viewport, vec3& output2D)
-{
-	//Modelview transform
-	vec4 Pm;
-	{
-		Pm.x = static_cast<float>(modelview[0][0] * input3D.x + modelview[0][1] * input3D.y + modelview[0][2] * input3D.z + modelview[0][3]);
-		Pm.y = static_cast<float>(modelview[1][0] * input3D.x + modelview[1][1] * input3D.y + modelview[1][2] * input3D.z + modelview[1][3]);
-		Pm.z = static_cast<float>(modelview[2][0] * input3D.x + modelview[2][1] * input3D.y + modelview[2][2] * input3D.z + modelview[2][3]);
-		Pm.w = static_cast<float>(modelview[3][0] * input3D.x + modelview[3][1] * input3D.y + modelview[3][2] * input3D.z + modelview[3][3]);
-	};
-
-	//Projection transform
-	vec4 Pp;
-	{
-		Pp.x = static_cast<float>(projection[0][0] * Pm.x + projection[0][1] * Pm.y + projection[0][2] * Pm.z + projection[0][3] * Pm.w);
-		Pp.y = static_cast<float>(projection[1][0] * Pm.x + projection[1][1] * Pm.y + projection[1][2] * Pm.z + projection[1][3] * Pm.w);
-		Pp.z = static_cast<float>(projection[2][0] * Pm.x + projection[2][1] * Pm.y + projection[2][2] * Pm.z + projection[2][3] * Pm.w);
-		Pp.w = static_cast<float>(projection[3][0] * Pm.x + projection[3][1] * Pm.y + projection[3][2] * Pm.z + projection[3][3] * Pm.w);
-	};
-
-	//The result normalizes between -1 and 1
-	if (Pp.w == 0.0)
-	{
-		return false;
-	}
-	//Perspective division
-	Pp.x /= Pp.w;
-	Pp.y /= Pp.w;
-	Pp.z /= Pp.w;
-	//Window coordinates
-	//Map x, y to range 0-1
-	output2D.x = (1.0 + Pp.x) / 2 * viewport[2] + viewport[0];
-	output2D.y = (1.0 + Pp.y) / 2 * viewport[3] + viewport[1];
-	//This is only correct when glDepthRange(0.0, 1.0)
-	output2D.z = (1.0 + Pp.z) / 2;	//Between 0 and 1
-
-	return true;
-}
-
-vec3 COpenGL::convertMousePositionToOrientation(int x, int y)
-{
-	CRect rect;
-	GetClientRect(&rect);
-	float xc = static_cast<double>(rect.Width() / 2);
-	float yc = static_cast<double>(rect.Height() / 2);
-
-	vec3 Q2D;
-
-	//project the current pivot point on screen
-	CameraParam camera;
-	getGLCameraParameters(camera);
-
-	if (!camera.project(m_viewportParams.pivotPoint, Q2D))
-	{
-		//arbitrary direction
-		return vec3(0, 0, 1);
-	}
-	//we set the virtual rotation pivot closer to the actual one (but we always stay in the central part of the screen!)
-	Q2D.x = min<GLfloat>(Q2D.x, 3 * rect.Width() / 4);
-	Q2D.x = max<GLfloat>(Q2D.x, rect.Width() / 4);
-
-	Q2D.y = min<GLfloat>(Q2D.y, 3 * rect.Height() / 4);
-	Q2D.y = max<GLfloat>(Q2D.y, rect.Height() / 4);
-
-	//invert y
-	y = rect.Height() - 1 - y;
-
-	vec3 v(x - Q2D.x, y - Q2D.y, 0);
-
-	v.x = max<float>(min<float>(v.x / xc, 1), -1);
-	v.y = max<float>(min<float>(v.y / yc, 1), -1);
-
-	if (m_verticalRotationLocked || m_bubbleViewModeEnabled)
-	{
-		v.y = 0;
-	}
-
-	//square 'radius'
-	double d2 = v.x*v.x + v.y*v.y;
-
-	//projection on the unit sphere
-	if (d2 > 1)
-	{
-		double d = sqrt(d2);
-		v.x /= d;
-		v.y /= d;
-	}
-	else
-	{
-		v.z = sqrt(1.0 - d2);
-	}
-
-	return v;
-}
-
-vec3 COpenGL::getRealCameraCenter() const
-{
-
-	//in orthographic mode, we put the camera at the center of the
-	//visible objects (along the viewing direction)
-
 	CBox box = getVisibleBox();
-	return vec3(m_viewportParams.cameraCenter.x,
-		m_viewportParams.cameraCenter.y,
-		box.getCenter().z);
-}
+	float half_dis = box.getNorm() / 2.0f;
+	half_dis += length(box.getCenter());
+	m_projParam.zNear = -10.0f * half_dis;
+	m_projParam.zFar = m_projParam.zNear * -1.0f;
 
-
-mat4 COpenGL::computeModelViewMatrix(const vec3& cameraCenter) const
-{
-	mat4 viewMatd;
-	viewMatd[0][0] = viewMatd[1][1] = viewMatd[2][2] = viewMatd[3][3] = 1.0f;
-
-	//place origin on pivot point
-	//viewMatd.setTranslation(/*viewMatd.getTranslationAsVec3D()*/ -m_viewportParams.pivotPoint);
-	viewMatd = translate(viewMatd, -m_viewportParams.pivotPoint);
-	//viewMatd[3] = vec4(-m_viewportParams.pivotPoint, 1.0f);
-
-	//rotation (viewMat is simply a rotation matrix around the pivot here!)
-	viewMatd = m_viewportParams.viewMat * viewMatd;
-
-	//go back to initial origin
-	//then place origin on camera center
-	//viewMatd.setTranslation(viewMatd.getTranslationAsVec3D() + m_viewportParams.pivotPoint - cameraCenter);
-	vec3 translation = vec3(viewMatd[3].x, viewMatd[3].y, viewMatd[3].z);
-	viewMatd[3] = vec4(translation + m_viewportParams.pivotPoint - cameraCenter, 1.0f);
-
-	mat4 scaleMatd;
-	scaleMatd[0][0] = scaleMatd[1][1] = scaleMatd[2][2] = scaleMatd[3][3] = 1.0f;
-	//apply zoom
-	float totalZoom = m_viewportParams.zoom / m_viewportParams.pixelSize;
-	//glScalef(totalZoom,totalZoom,totalZoom);
-	scaleMatd[0][0] = totalZoom;
-	scaleMatd[1][1] = totalZoom;
-	scaleMatd[2][2] = totalZoom;
-
-	return scaleMatd * viewMatd;
-}
-
-mat4 COpenGL::computeProjectionMatrix(const vec3 & cameraCenter, bool withGLfeatures, ProjectionMetrics * metrics, double * eyeOffset) const
-{
-	float bbHalfDiag = 0.0f;
-	vec3 bbCenter(0, 0, 0);
-
-	CBox box = getVisibleBox();
-	bbCenter = box.getCenter();
-	bbHalfDiag = box.getNorm() / 2.0f;
-
-	if (metrics)
-	{
-		metrics->bbHalfDiag = bbHalfDiag;
-		metrics->cameraToBBCenterDist = sqrt(dot(cameraCenter - bbCenter, cameraCenter - bbCenter));
-	}
-	//virtual pivot point (i.e. to handle viewer-based mode smoothly)
-	vec3 pivotPoint = m_viewportParams.pivotPoint;
-
-	//distance between the camera center and the pivot point
-	//warning: in orthographic mode it's important to get the 'real' camera center
-	//(i.e. with z == bbCenter(z) and not z == anything)
-	//otherwise we (sometimes largely) overestimate the distance between the camera center
-	//and the displayed objects if the camera has been shifted in the Z direction (e.g. after
-	//switching from perspective to ortho. view).
-	//While the user won't see the difference this has a great influence on GL filters
-	//(as normalized depth map values depend on it)
-	float CP = sqrt(dot(cameraCenter - pivotPoint, cameraCenter - pivotPoint));
-
-	//distance between the pivot point and DB farthest point
-	float MP = sqrt(dot(bbCenter - pivotPoint, bbCenter - pivotPoint)) + bbHalfDiag;
-
-	//pivot symbol should always be visible in object-based mode (if enabled)
-	/*if (m_pivotSymbolShown && m_pivotVisibility != PIVOT_HIDE && withGLfeatures && m_viewportParams.objectCenteredView)
-	{
-		double pivotActualRadius = CC_DISPLAYED_PIVOT_RADIUS_PERCENT * std::min(m_glViewport.width(), m_glViewport.height()) / 2;
-		double pivotSymbolScale = pivotActualRadius * computeActualPixelSize();
-		MP = std::max<double>(MP, pivotSymbolScale);
-	}*/
-	MP *= 1.1; //for round-off issues
-
-	//max distance (camera to 'farthest' point)
-	float maxDist = CP + MP;
-	maxDist = max<float>(maxDist, 0.1f);
-	float halfDist = maxDist;
-
-	//OutputString("half dist: %f\r\n", halfDist);
 	mat4 projMat;
-
-	if (m_glViewport.Width() <= m_glViewport.Height())
+	if (m_viewportParams.viewport[2] <= m_viewportParams.viewport[3])
 		projMat = ortho(
-			-halfDist, 
-			halfDist, 
-			-halfDist * (float)m_glViewport.Height() / (float)m_glViewport.Width(), 
-			halfDist * (float)m_glViewport.Height() / (GLfloat)m_glViewport.Width(), 
-			-halfDist, 
-			halfDist);
+			-half_dis, 
+			half_dis, 
+			-half_dis * (GLfloat)m_viewportParams.viewport[3] / (GLfloat)m_viewportParams.viewport[2], 
+			half_dis * (GLfloat)m_viewportParams.viewport[3] / (GLfloat)m_viewportParams.viewport[2], 
+			m_projParam.zNear, 
+			m_projParam.zFar);
 	else
 		projMat = ortho(
-			-halfDist * (float)m_glViewport.Width() / (float)m_glViewport.Height(),
-			halfDist * (float)m_glViewport.Width() / (float)m_glViewport.Height(),
-			-halfDist,
-			halfDist,
-			-halfDist,
-			halfDist);
+			-half_dis * (GLfloat)m_viewportParams.viewport[2] / (GLfloat)m_viewportParams.viewport[3], 
+			half_dis * (GLfloat)m_viewportParams.viewport[2] / (GLfloat)m_viewportParams.viewport[3], 
+			-half_dis, 
+			half_dis, 
+			m_projParam.zNear, 
+			m_projParam.zFar);
 
-	if (metrics)
-	{
-		metrics->zNear = -halfDist;
-		metrics->zFar = halfDist;
-	}
 	return projMat;
 }
 
 void COpenGL::updateModelViewMatrix()
 {
 	//we save visualization matrix
-	m_viewMatd = computeModelViewMatrix(getRealCameraCenter());
+	m_modelViewMat = computeModelViewMatrix();
 
-	m_validModelviewMatrix = true;
+	m_validModelViewMatrix = true;
 }
 
 void COpenGL::updateProjectionMatrix()
 {
-	ProjectionMetrics metrics;
 
-	m_projMatd = computeProjectionMatrix
-	(
-		getRealCameraCenter(),
-		true,
-		&metrics,
-		0
-	); //no stereo vision by default!
-	m_viewportParams.zNear = metrics.zNear;
-	m_viewportParams.zFar = metrics.zFar;
-	//m_cameraToBBCenterDist = metrics.cameraToBBCenterDist;
-	//m_bbHalfDiag = metrics.bbHalfDiag;
+	m_projMat = computeProjectionMatrix(); 
 
 	m_validProjectionMatrix = true;
 }
 
 const mat4& COpenGL::getModelViewMatrix()
 {
-	if (!m_validModelviewMatrix)
+	if (!m_validModelViewMatrix)
 		updateModelViewMatrix();
 
-	return m_viewMatd;
+	return m_modelViewMat;
 }
 
 const mat4& COpenGL::getProjectionMatrix()
@@ -734,98 +291,7 @@ const mat4& COpenGL::getProjectionMatrix()
 	if (!m_validProjectionMatrix)
 		updateProjectionMatrix();
 
-	return m_projMatd;
-}
-
-mat4 COpenGL::FromToRotation(const vec3 from, const vec3 to)
-{
-	float c = dot(from, to);
-	float f = (c < 0 ? -c : c);
-	mat4 result;
-
-	if (1.0 - f < 1e-6) //"from" and "to"-vector almost parallel
-	{
-		// "to" vector most nearly orthogonal to "from"
-		vec3 x(0, 0, 0);
-		if (fabs(from.x) < fabs(from.y))
-		{
-			if (fabs(from.x) < fabs(from.z))
-				x.x = static_cast<float>(1);
-			else
-				x.z = static_cast<float>(1);
-		}
-		else
-		{
-			if (fabs(from.y) < fabs(from.z))
-				x.y = static_cast<float>(1);
-			else
-				x.z = static_cast<float>(1);
-		}
-
-		vec3 u = x - from;
-		vec3 v = x - to;
-
-		float c1 = 2 / dot(u, u);
-		float c2 = 2 / dot(v, v);
-		float c3 = c1 * c2  * dot(u, v);
-
-		for (unsigned i = 0; i<3; i++)
-		{
-			for (unsigned j = 0; j<3; j++)
-			{
-				result[j][i] = c3 * v[i] * u[j]
-					- c2 * v[i] * v[j]
-					- c1 * u[i] * u[j];
-			}
-			result[i][i] += static_cast<float>(1);
-		}
-	}
-	else  // the most common case, unless "from"="to", or "from"=-"to"
-	{
-		//see Efficiently Building a Matrix to Rotate One Vector to Another
-		//T. Moller and J.F. Hugues (1999)
-		vec3 v = cross(from, to);
-		float h = 1 / (1 + c);
-		float hvx = h * v.x;
-		float hvz = h * v.z;
-		float hvxy = hvx * v.y;
-		float hvxz = hvx * v.z;
-		float hvyz = hvz * v.y;
-
-		result[0][0] = c + hvx * v.x;
-		result[1][0] = hvxy + v.z;
-		result[2][0] = hvxz - v.y;
-
-		result[0][1] = hvxy - v.z;
-		result[1][1] = c + h * v.y * v.y;
-		result[2][1] = hvyz + v.x;
-
-		result[0][2] = hvxz + v.y;
-		result[1][2] = hvyz - v.x;
-		result[2][2] = c + hvz * v.z;
-	}
-
-	return result;
-}
-
-void COpenGL::getGLCameraParameters(CameraParam & params)
-{
-	//get/compute the modelview matrix
-	{
-		params.modelViewMat = getModelViewMatrix();
-	}
-
-	//get/compute the projection matrix
-	{
-		params.projectionMat = getProjectionMatrix();
-	}
-
-	params.viewport[0] = m_glViewport.left;
-	params.viewport[1] = m_glViewport.top;
-	params.viewport[2] = m_glViewport.Width();
-	params.viewport[3] = m_glViewport.Height();
-
-	params.pixelSize = m_viewportParams.pixelSize;
+	return m_projMat;
 }
 
 int COpenGL::OnCreate(LPCREATESTRUCT lpCreateStruct)
@@ -839,15 +305,6 @@ int COpenGL::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	if (!init())
 		MessageBox(_T("Init opengl error"));
 	return 0;
-}
-
-
-void COpenGL::rotateBaseViewMat(const mat4 rotMat)
-{
-	if (dot(rotMat[0], rotMat[0]) < 1e-6)
-		return;
-	m_viewportParams.viewMat = rotMat * m_viewportParams.viewMat;
-	invalidateVisualization();
 }
 
 void COpenGL::OnDestroy()
@@ -871,7 +328,10 @@ void COpenGL::OnSize(UINT nType, int cx, int cy)
 		cy = 1;
 	}
 
-	m_glViewport = CRect(0, 0, cx, cy);
+	m_viewportParams.viewport[0] = 0;
+	m_viewportParams.viewport[1] = 0;
+	m_viewportParams.viewport[2] = cx;
+	m_viewportParams.viewport[3] = cy;
 	glViewport(0, 0, cx, cy);
 
 	invalidViewport();
@@ -886,93 +346,93 @@ BOOL COpenGL::OnEraseBkgnd(CDC* pDC)
 	return TRUE;
 }
 
-//! get transformation from 3 rotation angles and a translation
-/** See http://en.wikipedia.org/wiki/Euler_angles (Tait-Bryan Z1Y2X3)
-\param[in] phi_rad Phi angle (in radians)
-\param[in] theta_rad Theta angle (in radians)
-\param[in] psi_rad Psi angle (in radians)
-\param[in] t3D translation
-**/
-mat4 COpenGL::getFromParameters(float phi_rad, float theta_rad, float psi_rad,	const vec3& t3D)
-{
-	float c1 = cos(phi_rad);
-	float c2 = cos(theta_rad);
-	float c3 = cos(psi_rad);
-
-	float s1 = sin(phi_rad);
-	float s2 = sin(theta_rad);
-	float s3 = sin(psi_rad);
-
-	mat4 mat;
-	//1st column
-	mat[0][0] = c2*c1;
-	mat[1][0] = c2*s1;
-	mat[2][0] = -s2;
-	mat[3][0] = 0;
-
-	//2nd column
-	mat[0][1] = s3*s2*c1 - c3*s1;
-	mat[1][1] = s3*s2*s1 + c3*c1;
-	mat[2][1] = s3*c2;
-	mat[3][1] = 0;
-
-	//3rd column
-	mat[0][2] = c3*s2*c1 + s3*s1;
-	mat[1][2] = c3*s2*s1 - s3*c1;
-	mat[2][2] = c3*c2;
-	mat[3][2] = 0;
-
-	//4th column
-	mat[0][3] = t3D.x;
-	mat[1][3] = t3D.y;
-	mat[2][3] = t3D.z;
-	mat[3][3] = static_cast<float>(1.0);
-
-	return mat;
-}
-
 void COpenGL::moveCamera(float dx, float dy, float dz)
 {
 	vec3 V(dx, dy, dz);
 
-	setCameraPos(m_viewportParams.cameraCenter + V);
+	//setCameraPos(m_viewportParams.cameraCenter + V);
 }
 
-void COpenGL::setBaseViewMat(mat4 & mat)
+mat4 COpenGL::getRotateMatrix(float angle, const vec3 & vector)
 {
-	m_viewportParams.viewMat = mat;
-	invalidateVisualization();
+	angle = radians(angle);
+	vec3 vec = normalize(vector);
+	float cosa = cos(angle);
+	float sina = sin(angle);
+
+	double a = vec[0] * sina;
+	double b = vec[1] * sina;
+	double c = vec[2] * sina;
+
+	mat4 matrix;
+
+	matrix[0][0] = 1.0 - 2.0*(b*b + c*c);
+	matrix[1][1] = 1.0 - 2.0*(c*c + a*a);
+	matrix[2][2] = 1.0 - 2.0*(a*a + b*b);
+
+	matrix[0][1] = 2.0 * (a*b - c*cosa);
+	matrix[0][2] = 2.0 * (a*c + b*cosa);
+
+	matrix[1][0] = 2.0 * (a*b + c*cosa);
+	matrix[1][2] = 2.0 * (b*c - a*cosa);
+
+	matrix[2][0] = 2.0 * (a*c - b*cosa);
+	matrix[2][1] = 2.0 * (b*c + a*cosa);
+
+	return matrix;
+}
+
+vec3 COpenGL::productRotMat(const mat4 & mat, const vec3 & vec)
+{
+	float x, y, z;
+	x = vec[0] * mat[0][0] +
+		vec[1] * mat[0][1] +
+		vec[2] * mat[0][2];
+
+	y = vec[0] * mat[1][0] +
+		vec[1] * mat[1][1] +
+		vec[2] * mat[1][2];
+
+	z = vec[0] * mat[2][0] +
+		vec[1] * mat[2][1] +
+		vec[2] * mat[2][2];
+
+	return vec3(x, y, z);
+}
+
+void COpenGL::computeRotVectorAngle(const float deltaX, const float deltaY, vec3 & rotVec, float & angle)
+{
+	vec3 mouse = m_modelViewParam.axisX * deltaX + m_modelViewParam.axisY * deltaY;
+	rotVec = cross(mouse, m_modelViewParam.axisZ);
+	rotVec += m_modelViewParam.view;
+	angle = length(mouse);
 }
 
 
 void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
+
+	int dx = point.x - m_lastPoint.x;
+	int dy = point.y - m_lastPoint.y;
+
 	if (nFlags & MK_LBUTTON)
 	{
-		m_currentMouseOrientation = convertMousePositionToOrientation(point.x, point.y);
-		mat4 rotateMat = FromToRotation(m_lastMouseOrientation, m_currentMouseOrientation);
-		m_lastMouseOrientation = m_currentMouseOrientation;
-
-		rotateBaseViewMat(rotateMat);
+		vec3 rotVec;
+		float angle;
+		computeRotVectorAngle(0.1f * dx, -0.1f * dy, rotVec, angle);
+		mat4 rotateMat = getRotateMatrix(angle, rotVec);
+		setRotate(rotateMat);
 		invalidViewport();
 		RenderScene();
 	}
 	if (nFlags & MK_RBUTTON)
 	{
-		int dx = point.x - m_lastPoint.x;
-		int dy = point.y - m_lastPoint.y;
+		
 
 		vec3 u(dx * 0.001, dy * 0.001, 0);
 		moveCamera(u.x, u.y, u.z);
 
-		//vec3 vec(0, fDiffX * 0.005f, fDiffY * 0.005f);
-		//m_vecTranslate = m_vecTranslate + vec;
-		//m_vecTranslate = product(m_rotateMatrix, m_vecTranslate);
-		////m_vecView = m_vecView + vec;
-		////m_vecCamera = m_vecCamera + vec;
-		//OutputString("%lf, %lf, %lf\r\n", vec[0], vec[1], vec[2]);
-		//OutputString("%lf, %lf, %lf\r\n", m_vecTranslate[0], m_vecTranslate[1], m_vecTranslate[2]);
 		RenderScene();
 	}
 
@@ -985,7 +445,6 @@ void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 BOOL COpenGL::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
-	m_ratio *= (zDelta > 0) ? 0.9f : 1.1f;
 	RenderScene();
 	return CView::OnMouseWheel(nFlags, zDelta, pt);
 }
@@ -994,7 +453,6 @@ BOOL COpenGL::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 void COpenGL::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
-	m_lastMouseOrientation = convertMousePositionToOrientation(point.x, point.y);
 	CView::OnLButtonDown(nFlags, point);
 }
 

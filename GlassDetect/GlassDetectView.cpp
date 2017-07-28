@@ -40,6 +40,7 @@ CGlassDetectView::CGlassDetectView()
 
 void CGlassDetectView::UpdateView()
 {
+	setBaseView();
 	setPivotPoint(getVisibleBox().getCenter());
 	setCameraPos(getVisibleBox().getCenter());
 

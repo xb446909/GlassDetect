@@ -12,81 +12,57 @@ class COpenGL :
 	public CView
 {
 public:
+	typedef struct tagModelViewPararm
+	{
+		tagModelViewPararm()
+		{
+			axisY = vec3(0, 1, 0);
+			zoom = 1.0f;
+			translate = vec3(0.0f);
+		}
+
+		void setAxis()
+		{
+			axisY = normalize(head);
+			axisZ = camera - view;
+			axisX = cross(axisY, axisZ);
+			axisX = normalize(axisX);
+		}
+
+		vec3 axisX;
+		vec3 axisY;
+		vec3 axisZ;
+		vec3 camera;
+		vec3 view;
+		vec3 head;
+		float zoom;
+		vec3 translate;
+	}ModelViewPararm;
+
+	typedef struct tagProjectParam
+	{
+		float zNear;
+		float zFar;
+		float orthoAspectRatio;
+	}ProjectParam;
+
 	typedef struct tagViewportParam
 	{
 		tagViewportParam()
 		{
-			zoom = 1.0f;
 			pixelSize = 1.0f;
-			orthoAspectRatio = 1.0f;
-			viewMat[0][0] = viewMat[1][1] = viewMat[2][2] = viewMat[3][3] = 1.0f;
+			memset(viewport, 0, 4 * sizeof(int));
 		}
 
-		//! Current pixel size (in 'current unit'/pixel)
-		/** This scale is valid eveywhere in ortho. mode
-		or at the focal distance in perspective mode.
-		Warning: doesn't take current zoom into account!
-		**/
 		float pixelSize;
-
-		//! Current zoom
-		float zoom;
-
-		//! Visualization matrix (rotation only)
-		mat4 viewMat;
 
 		//! Point size
 		float defaultPointSize;
 		//! Line width
 		float defaultLineWidth;
 
-		//! Actual perspective 'zNear' value
-		double zNear;
-		//! Actual perspective 'zFar' value
-		double zFar;
-
-		//! Rotation pivot point (for object-centered view modes)
-		vec3 pivotPoint;
-
-		//! Camera center (for perspective mode)
-		vec3 cameraCenter;
-
-		//! 3D view aspect ratio (ortho mode only)
-		/** AR = width / height
-		**/
-		float orthoAspectRatio;
-	}ViewParam;
-
-	typedef struct tagCameraParam
-	{
-		tagCameraParam()
-			: pixelSize(1.0f)
-		{
-			memset(viewport, 0, 4 * sizeof(int));
-		}
-
-		//! Projects a 3D point in 2D (+ normalized 'z' coordinate)
-		inline bool project(const vec3& input3D, vec3& output2D) const { return COpenGL::Project(input3D, modelViewMat, projectionMat, viewport, output2D); }
-		
-		//! Unprojects a 2D point (+ normalized 'z' coordinate) in 3D
-		inline bool unproject(const vec3& input2D, vec3& output3D) const { return COpenGL::Unproject(input2D, modelViewMat, projectionMat, viewport, output3D); }
-
-		//! Model view matrix (GL_MODELVIEW)
-		mat4 modelViewMat;
-		//! Projection matrix (GL_PROJECTION)
-		mat4 projectionMat;
-		//! Viewport (GL_VIEWPORT)
 		int viewport[4];
-		//! Pixel size (i.e. zoom) - non perspective mode only
-		float pixelSize;
-	}CameraParam;
-
-	//! Optional output metrics (from computeProjectionMatrix)
-	struct ProjectionMetrics
-	{
-		ProjectionMetrics() : zNear(0), zFar(0), cameraToBBCenterDist(0), bbHalfDiag(0) {}
-		double zNear, zFar, cameraToBBCenterDist, bbHalfDiag;
-	};
+	}ViewportParam;
 
 	typedef struct tagDrawParam
 	{
@@ -134,50 +110,28 @@ private:
 
 	vector<DrawParam> m_vecBuffer;
 
-	vec3 m_vecCamera;
-	vec3 m_vecView;
-	vec3 m_vecHead;
-
-	vec3 m_vecAxisX;
-	vec3 m_vecAxisY;
-	vec3 m_vecAxisZ;
-	mat4 m_rotateMatrix;
-
-
-	float m_ratio;
-	vec3 m_vecTranslate;
-
-	ViewParam m_viewportParams;
-
-	bool m_verticalRotationLocked;
-	bool m_bubbleViewModeEnabled;
+	ViewportParam m_viewportParams;
+	ModelViewPararm m_modelViewParam;
+	ProjectParam m_projParam;
 	
-	CRect m_glViewport;
-	mat4 m_viewMatd;
-	bool m_validModelviewMatrix;
-	mat4 m_projMatd;
+	mat4 m_modelViewMat;
+	bool m_validModelViewMatrix;
+	mat4 m_projMat;
 	bool m_validProjectionMatrix;
 
 	void DrawBuffer();
 	BOOL SetupPixelFormat(HDC hDC);
-	vec3 convertMousePositionToOrientation(int x, int y);
-	void getGLCameraParameters(CameraParam& params);
-	vec3 getRealCameraCenter() const;
-	mat4 computeModelViewMatrix(const vec3 & cameraCenter) const;
-	mat4 computeProjectionMatrix(const vec3& cameraCenter,
-		bool withGLfeatures,
-		ProjectionMetrics* metrics = 0,
-		double* eyeOffset = 0) const;
+	mat4 computeModelViewMatrix();
+	mat4 computeProjectionMatrix();
 	void updateModelViewMatrix();
 	void updateProjectionMatrix();
 	const mat4 & getModelViewMatrix();
 	const mat4 & getProjectionMatrix();
-	mat4 FromToRotation(const vec3 from, const vec3 to);
-	vec3 m_currentMouseOrientation;
-	vec3 m_lastMouseOrientation;
-	void rotateBaseViewMat(const mat4 rotMat);
-	mat4 getFromParameters(float phi_rad, float theta_rad, float psi_rad, const vec3& t3D);
 	void moveCamera(float dx, float dy, float dz);
+	mat4 getRotateMatrix(float angle, const vec3 &vector);
+	vec3 productRotMat(const mat4& mat, const vec3& vec);
+
+	void computeRotVectorAngle(const float deltaX, const float deltaY, vec3& rotVec, float& angle);
 public:
 	afx_msg void OnDestroy();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -185,17 +139,13 @@ public:
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 
-	static bool Project(const vec3& input3D, const mat4& modelview, const mat4& projection, const int* viewport, vec3& output2D);
-	static bool Unproject(const vec3& input2D, const mat4& modelview, const mat4& projection, const int* viewport, vec3& output3D);
-
-	static bool InvertMatrix(const mat4& m, mat4& out);
-	static mat4 initMatFromParameter(float phi_rad, float theta_rad, float psi_rad, const vec3& t3D);
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 
 	void PushBuffer(const int nIndex, int nType, const float* data, int size);
-	void setBaseViewMat(mat4& mat);
 	void setPivotPoint(vec3 P);
 	void setCameraPos(vec3 P);
 	void RenderScene();
+	void setBaseView();
+	void setRotate(mat4 rotMat);
 };
 

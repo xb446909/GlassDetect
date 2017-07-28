@@ -1,6 +1,7 @@
 #pragma once
 
 #define	GLEW_STATIC		1
+#define GLM_ENABLE_EXPERIMENTAL 1
 
 #include "../GL/include/glew.h"
 #include <gl/GLU.h>
@@ -8,6 +9,8 @@
 #include "../common/texture.hpp"
 #include "../glm/glm.hpp"
 #include "../glm/gtc/matrix_transform.hpp"
+#include "../glm/gtx/euler_angles.hpp"
+
 
 using namespace glm;
 
@@ -23,7 +26,7 @@ public:
 	vec3 getMinPoint() { return m_leftTop; }
 	vec3 getMaxPoint() { return m_rightBottom; }
 	vec3 getCenter() { return (m_leftTop + m_rightBottom) / 2.0f; }
-	float getNorm();
+	float getNorm() const;
 
 private:
 	vec3 m_leftTop;

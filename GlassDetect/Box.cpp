@@ -54,7 +54,7 @@ const CBox & CBox::operator+=(const CBox & box)
 	return *this;
 }
 
-float CBox::getNorm()
+float CBox::getNorm() const
 {
 	return sqrt(dot(m_rightBottom - m_leftTop, m_rightBottom - m_leftTop));
 }

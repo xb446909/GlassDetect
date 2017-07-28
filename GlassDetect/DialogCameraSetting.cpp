@@ -204,8 +204,8 @@ void CDialogCameraSetting::SetViewModel()
 	float theta_rad = pi<float>() * y / 180.0f;
 	float psi_rad = pi<float>() * z / 180.0f;
 	vec3 t3D = vec3(0.0f, 0.0f, 0.0f);
-	mat4 mat = COpenGL::initMatFromParameter(phi_rad, theta_rad, psi_rad, t3D);
-	pView->setBaseViewMat(mat);
+	mat4 mat = eulerAngleXYZ(phi_rad, theta_rad, psi_rad);
+	//pView->setBaseViewMat(mat);
 	pView->RenderScene();
 }
 
