@@ -158,7 +158,7 @@ void CGlassDetectDoc::ReadFile(const char * szPath)
 		r = strtok(NULL, delims);
 	}
 
-	/* 结束演示，关闭文件并释放内存 */
+	/* 结束演示，关闭文件并释放内存 */-
 	fclose(pFile);
 	free(buffer);
 }
@@ -249,7 +249,10 @@ void CGlassDetectDoc::OnCloseDocument()
 
 void CGlassDetectDoc::UpdateView()
 {
-	//m_mapPrimitives[GL_POINTS]->updateBox();
+	for (size_t i = 0; i < m_vecPrimitives.size(); i++)
+	{
+		m_vecPrimitives[i]->updateBox();
+	}
 	SetValid(false);
 	POSITION pos = GetFirstViewPosition();
 	CGlassDetectView* pGlassDetectView = reinterpret_cast<CGlassDetectView*>(GetNextView(pos));

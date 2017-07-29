@@ -142,6 +142,7 @@ public:
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 
 	void PushBuffer(const int nIndex, int nType, const float* data, int size);
+	void ClearBuffer();
 	void setPivotPoint(vec3 P);
 	void setCameraPos(vec3 P);
 	void RenderScene();

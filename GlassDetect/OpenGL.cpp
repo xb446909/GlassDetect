@@ -14,13 +14,7 @@ COpenGL::COpenGL()
 
 COpenGL::~COpenGL()
 {
-	for (size_t i = 0; i < m_vecBuffer.size(); i++)
-	{
-		glDeleteBuffers(1, &m_vecBuffer[i].buffer);
-	}
-
-	m_vecBuffer.clear();
-
+	ClearBuffer();
 	glDeleteProgram(m_programID);
 
 	HGLRC hrc = wglGetCurrentContext();
@@ -428,8 +422,6 @@ void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 	}
 	if (nFlags & MK_RBUTTON)
 	{
-		
-
 		vec3 u(dx * 0.001, dy * 0.001, 0);
 		moveCamera(u.x, u.y, u.z);
 
@@ -470,4 +462,13 @@ void COpenGL::PushBuffer(const int nIndex, int nType, const float * data, int si
 	drawParam.size = size;
 	drawParam.type = nType;
 	m_vecBuffer.push_back(drawParam);
+}
+
+void COpenGL::ClearBuffer()
+{
+	for (size_t i = 0; i < m_vecBuffer.size(); i++)
+	{
+		glDeleteBuffers(1, &m_vecBuffer[i].buffer);
+	}
+	m_vecBuffer.clear();
 }
