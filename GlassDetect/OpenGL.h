@@ -127,7 +127,6 @@ private:
 	void updateProjectionMatrix();
 	const mat4 & getModelViewMatrix();
 	const mat4 & getProjectionMatrix();
-	void moveCamera(float dx, float dy, float dz);
 	mat4 getRotateMatrix(float angle, const vec3 &vector);
 	vec3 productRotMat(const mat4& mat, const vec3& vec);
 
@@ -147,6 +146,8 @@ public:
 	void setCameraPos(vec3 P);
 	void RenderScene();
 	void setBaseView();
+	void moveCamera(float dx, float dy, float dz);
 	void setRotate(mat4 rotMat);
+	void setZoom(float zoom);
 };
 

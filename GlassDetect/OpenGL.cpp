@@ -138,6 +138,12 @@ void COpenGL::setRotate(mat4 rotMat)
 	invalidateVisualization();
 }
 
+void COpenGL::setZoom(float zoom)
+{
+	m_modelViewParam.zoom *= zoom;
+	invalidateVisualization();
+}
+
 CBox COpenGL::getVisibleBox() const
 {
 	return CBox();
@@ -342,8 +348,9 @@ BOOL COpenGL::OnEraseBkgnd(CDC* pDC)
 
 void COpenGL::moveCamera(float dx, float dy, float dz)
 {
-	vec3 V(dx, dy, dz);
-
+	vec3 V = vec3(1, 0, 0) * dx + vec3(0, 1, 0) * dy;
+	m_modelViewParam.translate += V;
+	invalidateVisualization();
 	//setCameraPos(m_viewportParams.cameraCenter + V);
 }
 
@@ -422,7 +429,7 @@ void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 	}
 	if (nFlags & MK_RBUTTON)
 	{
-		vec3 u(dx * 0.001, dy * 0.001, 0);
+		vec3 u(dx * 0.005, dy * -0.005, 0);
 		moveCamera(u.x, u.y, u.z);
 
 		RenderScene();
@@ -437,6 +444,8 @@ void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 BOOL COpenGL::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
+	float zoom = (zDelta > 0) ? 0.9f : 1.1f;
+	setZoom(zoom);
 	RenderScene();
 	return CView::OnMouseWheel(nFlags, zDelta, pt);
 }
@@ -445,6 +454,7 @@ BOOL COpenGL::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 void COpenGL::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
+	m_lastPoint = point;
 	CView::OnLButtonDown(nFlags, point);
 }
 
