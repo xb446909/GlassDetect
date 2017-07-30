@@ -142,6 +142,7 @@ void COpenGL::setZoom(float zoom)
 {
 	m_modelViewParam.zoom *= zoom;
 	invalidateVisualization();
+	invalidViewport();
 }
 
 CBox COpenGL::getVisibleBox() const
@@ -229,7 +230,7 @@ mat4 COpenGL::computeModelViewMatrix()
 		m_modelViewParam.view,
 		m_modelViewParam.head);
 	mat4 model = translate(mat4(), m_modelViewParam.translate);
-	model = scale(model, vec3(m_modelViewParam.zoom));
+
 	return model * view;
 }
 
@@ -238,26 +239,34 @@ mat4 COpenGL::computeProjectionMatrix()
 	CBox box = getVisibleBox();
 	float half_dis = box.getNorm() / 2.0f;
 	half_dis += length(box.getCenter());
+	half_dis *= m_modelViewParam.zoom;
+	
 	m_projParam.zNear = -10.0f * half_dis;
 	m_projParam.zFar = m_projParam.zNear * -1.0f;
-
+	
 	mat4 projMat;
 	if (m_viewportParams.viewport[2] <= m_viewportParams.viewport[3])
+	{
 		projMat = ortho(
-			-half_dis, 
-			half_dis, 
-			-half_dis * (GLfloat)m_viewportParams.viewport[3] / (GLfloat)m_viewportParams.viewport[2], 
-			half_dis * (GLfloat)m_viewportParams.viewport[3] / (GLfloat)m_viewportParams.viewport[2], 
-			m_projParam.zNear, 
+			-half_dis,
+			half_dis,
+			-half_dis * (GLfloat)m_viewportParams.viewport[3] / (GLfloat)m_viewportParams.viewport[2],
+			half_dis * (GLfloat)m_viewportParams.viewport[3] / (GLfloat)m_viewportParams.viewport[2],
+			m_projParam.zNear,
 			m_projParam.zFar);
+		m_viewportParams.pixelSize = 2.0f * half_dis / static_cast<float>(m_viewportParams.viewport[2]);
+	}
 	else
+	{
 		projMat = ortho(
-			-half_dis * (GLfloat)m_viewportParams.viewport[2] / (GLfloat)m_viewportParams.viewport[3], 
-			half_dis * (GLfloat)m_viewportParams.viewport[2] / (GLfloat)m_viewportParams.viewport[3], 
-			-half_dis, 
-			half_dis, 
-			m_projParam.zNear, 
+			-half_dis * (GLfloat)m_viewportParams.viewport[2] / (GLfloat)m_viewportParams.viewport[3],
+			half_dis * (GLfloat)m_viewportParams.viewport[2] / (GLfloat)m_viewportParams.viewport[3],
+			-half_dis,
+			half_dis,
+			m_projParam.zNear,
 			m_projParam.zFar);
+		m_viewportParams.pixelSize = 2.0f * half_dis / static_cast<float>(m_viewportParams.viewport[3]);
+	}
 
 	return projMat;
 }
@@ -292,6 +301,11 @@ const mat4& COpenGL::getProjectionMatrix()
 		updateProjectionMatrix();
 
 	return m_projMat;
+}
+
+float COpenGL::getPixelSize() const
+{
+	return m_viewportParams.pixelSize;
 }
 
 int COpenGL::OnCreate(LPCREATESTRUCT lpCreateStruct)
@@ -409,6 +423,7 @@ void COpenGL::computeRotVectorAngle(const float deltaX, const float deltaY, vec3
 	angle = length(mouse);
 }
 
+static int alldy = 0;
 
 void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 {
@@ -429,7 +444,9 @@ void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 	}
 	if (nFlags & MK_RBUTTON)
 	{
-		vec3 u(dx * 0.005, dy * -0.005, 0);
+		alldy += dy;
+		float pixelSize = getPixelSize();
+		vec3 u(dx * pixelSize, dy * -pixelSize, 0);
 		moveCamera(u.x, u.y, u.z);
 
 		RenderScene();

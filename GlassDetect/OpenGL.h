@@ -43,7 +43,6 @@ public:
 	{
 		float zNear;
 		float zFar;
-		float orthoAspectRatio;
 	}ProjectParam;
 
 	typedef struct tagViewportParam
@@ -127,6 +126,7 @@ private:
 	void updateProjectionMatrix();
 	const mat4 & getModelViewMatrix();
 	const mat4 & getProjectionMatrix();
+	float getPixelSize() const;
 	mat4 getRotateMatrix(float angle, const vec3 &vector);
 	vec3 productRotMat(const mat4& mat, const vec3& vec);
 
