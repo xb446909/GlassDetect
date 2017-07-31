@@ -162,6 +162,7 @@ void COpenGL::invalidateVisualization()
 
 void COpenGL::setPivotPoint(vec3 P)
 {
+	m_modelViewParam.povitPoint = P;
 	invalidViewport();
 }
 
@@ -230,8 +231,7 @@ mat4 COpenGL::computeModelViewMatrix()
 		m_modelViewParam.view,
 		m_modelViewParam.head);
 	mat4 model = translate(mat4(), m_modelViewParam.translate);
-
-	return model * view;
+	return model * view * translate(mat4(), -m_modelViewParam.povitPoint);
 }
 
 mat4 COpenGL::computeProjectionMatrix()
@@ -241,7 +241,7 @@ mat4 COpenGL::computeProjectionMatrix()
 	half_dis += length(box.getCenter());
 	half_dis *= m_modelViewParam.zoom;
 	
-	m_projParam.zNear = -10.0f * half_dis;
+	m_projParam.zNear = -10000.0f * half_dis;
 	m_projParam.zFar = m_projParam.zNear * -1.0f;
 	
 	mat4 projMat;
@@ -423,8 +423,6 @@ void COpenGL::computeRotVectorAngle(const float deltaX, const float deltaY, vec3
 	angle = length(mouse);
 }
 
-static int alldy = 0;
-
 void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
@@ -444,7 +442,6 @@ void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 	}
 	if (nFlags & MK_RBUTTON)
 	{
-		alldy += dy;
 		float pixelSize = getPixelSize();
 		vec3 u(dx * pixelSize, dy * -pixelSize, 0);
 		moveCamera(u.x, u.y, u.z);

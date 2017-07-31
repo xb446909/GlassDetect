@@ -150,9 +150,6 @@ int CGlassDetectView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 		return -1;
 
 	// TODO:  在此添加您专用的创建代码
-
-	glPointSize(5.0);
-
 	return 0;
 }
 

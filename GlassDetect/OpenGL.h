@@ -37,6 +37,7 @@ public:
 		vec3 head;
 		float zoom;
 		vec3 translate;
+		vec3 povitPoint;
 	}ModelViewPararm;
 
 	typedef struct tagProjectParam
