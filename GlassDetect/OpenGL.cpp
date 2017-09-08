@@ -430,6 +430,8 @@ void COpenGL::OnMouseMove(UINT nFlags, CPoint point)
 	int dx = point.x - m_lastPoint.x;
 	int dy = point.y - m_lastPoint.y;
 
+	if ((dx == 0) && (dy == 0)) return;
+
 	if (nFlags & MK_LBUTTON)
 	{
 		vec3 rotVec;
